@@ -1126,7 +1126,7 @@ VIEWS['progress'] = function(app) {
   big4.forEach(lift => {
     const exerciseLogs = logs.filter(l => l.compound?.exercise === lift.name);
     const points = exerciseLogs.map(l => {
-      const topSet = l.compound?.sets?.filter(s => s.completed).reduce((b, s) => s.weight > (b.weight||0) ? s : b, null);
+      const topSet = l.compound?.sets?.filter(s => s.completed).reduce((b, s) => s.weight > (b?.weight||0) ? s : b, null);
       return topSet ? { w: topSet.weight, date: l.date } : null;
     }).filter(Boolean);
 

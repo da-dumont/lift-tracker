@@ -100,7 +100,7 @@ describe('Bug 3 — dashboard reflects logged state after save', () => {
   })
 })
 
-// ─── Bug 4: History view crashes after saving ─────────
+// ─── Bug 4 & 5: View crashes after saving ────────────
 describe('Bug 4 — history view renders after a saved workout', () => {
   it('renders without throwing when a lift log exists', () => {
     const app = document.getElementById('app')
@@ -116,5 +116,17 @@ describe('Bug 4 — history view renders after a saved workout', () => {
 
     // At least one row should appear
     expect(app.querySelector('.history-row')).not.toBeNull()
+  })
+
+  it('progress view renders without throwing when a lift log exists', () => {
+    const app = document.getElementById('app')
+    app.innerHTML = ''
+
+    renderLift(app)
+    checkAllCompoundSets(app)
+    app.querySelector('#save-session').click()
+
+    app.innerHTML = ''
+    expect(() => VIEWS['progress'](app)).not.toThrow()
   })
 })
