@@ -47,7 +47,7 @@ function exportData() {
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = `lift-backup-${new Date().toISOString().split('T')[0]}.json`;
+  a.download = `lift-backup-${todayISO()}.json`;
   a.click();
 }
 
@@ -62,6 +62,10 @@ function importData(jsonString) {
 
 function generateId() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2);
+}
+
+function todayISO() {
+  return todayISO();
 }
 
 // ─── AUTOMATION ENGINE ────────────────────────────────
@@ -181,14 +185,14 @@ function savePRs(prs) {
       weight: pr.weight,
       reps: pr.reps,
       estimated1RM: pr.estimated1RM,
-      date: new Date().toISOString().split('T')[0]
+      date: todayISO()
     };
   });
   saveMeta(meta);
 }
 
 function isTodayLogged(day) {
-  const today = new Date().toISOString().split('T')[0];
+  const today = todayISO();
   return getLogs().some(l => l.date === today && l.day === day);
 }
 
@@ -287,7 +291,7 @@ function dayLabel(day) {
 // ═══════════════════════════════════════════════════
 VIEWS['onboarding'] = function(app) {
   let screen = 1;
-  let startDate = new Date().toISOString().split('T')[0];
+  let startDate = todayISO();
   let maxes = { 'Back Squat': '', 'Barbell Bench Press': '', 'Conventional / Sumo Deadlift': '', 'Standing Overhead Press': '' };
   let bodyweight = '';
 
@@ -314,15 +318,16 @@ VIEWS['onboarding'] = function(app) {
       wrap.querySelector('#ob-next1').addEventListener('click', () => { screen = 2; render(); });
 
     } else if (screen === 2) {
+      const liftKey = lift => lift.replace(/\s+/g, '-').replace(/\//g, '-');
       const lifts = Object.keys(maxes);
       const formGroups = lifts.map(lift => `
         <div class="form-group">
           <label class="form-label">${lift}</label>
           <div class="max-input-group">
             <input type="number" class="input" placeholder="lbs" inputmode="decimal"
-              data-lift="${lift}" value="${maxes[lift]}" id="max-${lift.replace(/\s+/g,'-').replace(/\//g,'-')}">
+              data-lift="${lift}" value="${maxes[lift]}" id="max-${liftKey(lift)}">
             <span class="estimate-toggle" data-lift="${lift}">Estimate from a set →</span>
-            <div class="estimate-expander" id="est-${lift.replace(/\s+/g,'-').replace(/\//g,'-')}" style="display:none">
+            <div class="estimate-expander" id="est-${liftKey(lift)}" style="display:none">
               <div class="estimate-inputs">
                 <input type="number" class="input" placeholder="Weight" inputmode="decimal" data-est-w="${lift}">
                 <span class="text-muted">×</span>
@@ -352,7 +357,7 @@ VIEWS['onboarding'] = function(app) {
       app.appendChild(wrap);
 
       lifts.forEach(lift => {
-        const key = lift.replace(/\s+/g,'-').replace(/\//g,'-');
+        const key = liftKey(lift);
         wrap.querySelector(`#max-${key}`).addEventListener('input', e => { maxes[lift] = e.target.value; });
         wrap.querySelector(`[data-lift="${lift}"]`).addEventListener('click', () => {
           const exp = wrap.querySelector(`#est-${key}`);
@@ -381,7 +386,7 @@ VIEWS['onboarding'] = function(app) {
       wrap.querySelector('#ob-bw').addEventListener('input', e => { bodyweight = e.target.value; });
       wrap.querySelector('#ob-next2').addEventListener('click', () => {
         lifts.forEach(lift => {
-          const key = lift.replace(/\s+/g,'-').replace(/\//g,'-');
+          const key = liftKey(lift);
           const val = wrap.querySelector(`#max-${key}`).value;
           maxes[lift] = val ? parseFloat(val) : null;
         });
@@ -497,11 +502,11 @@ VIEWS['dashboard'] = function(app) {
   weekDotsHTML += `</div>`;
 
   // Last 4 sessions
-  const liftLogs = logs.filter(l => l.type !== 'zone2').slice(-4).reverse();
+  const recentLogs = logs.filter(l => l.type !== 'zone2').slice(-4).reverse();
   let recentHTML = '';
-  if (liftLogs.length) {
+  if (recentLogs.length) {
     recentHTML = `<div class="section-title">Recent Sessions</div>`;
-    liftLogs.forEach(l => {
+    recentLogs.forEach(l => {
       const topSet = l.compound?.sets?.filter(s => s.completed).reduce((b, s) => s.weight > (b.weight || 0) ? s : b, {});
       const topStr = topSet?.weight ? `${topSet.weight} lbs × ${topSet.reps}` : '';
       const rpeDot = l.rpe ? `<div class="rpe-dot" style="background:${rpeColor(l.rpe)}"></div>` : '';
@@ -528,8 +533,8 @@ VIEWS['dashboard'] = function(app) {
 
   let sparkHTML = `<div class="section-title">Big 4 Trend</div><div class="sparkline-grid">`;
   big4.forEach(lift => {
-    const liftLogs = logs.filter(l => l.compound?.exercise === lift.name).slice(-8);
-    const points = liftLogs.map(l => {
+    const exerciseLogs = logs.filter(l => l.compound?.exercise === lift.name).slice(-8);
+    const points = exerciseLogs.map(l => {
       const topSet = l.compound?.sets?.filter(s => s.completed).reduce((b, s) => s.weight > (b.weight || 0) ? s : b, null);
       return topSet ? topSet.weight : null;
     }).filter(Boolean);
@@ -632,7 +637,7 @@ function renderZone2Logger(app, today, week) {
   div.querySelector('#z2-save').addEventListener('click', () => {
     addLog({
       id: generateId(), type: 'zone2', day: today, week,
-      date: new Date().toISOString().split('T')[0],
+      date: todayISO(),
       activity: selectedActivity, duration, notes
     });
     showToast('Zone 2 session logged!');
@@ -673,13 +678,13 @@ function renderLiftLogger(app, today, week, meso, dayData) {
   }
 
   // Init superset state
+  const accScheme = getAccScheme(week);
   dayData.supersets.forEach((ss, ssIdx) => {
     const variant = ss[meso];
     if (!variant) return;
     sessionState.supersets[ssIdx] = {};
     variant.exercises.forEach((ex, exIdx) => {
       const suggested = getSuggestedWeight(ex.name, week) || '';
-      const accScheme = getAccScheme(week);
       sessionState.supersets[ssIdx][exIdx] = {
         exercise: ex.name,
         sets: Array.from({ length: accScheme.sets || 3 }, (_, i) => ({
@@ -688,6 +693,10 @@ function renderLiftLogger(app, today, week, meso, dayData) {
       };
     });
   });
+
+  function buildSetId(type, ss, ex, set) {
+    return type === 'compound' ? `set-${set}` : `set-${ss}-${ex}-${set}`;
+  }
 
   const div = document.createElement('div');
   div.className = 'view';
@@ -744,7 +753,6 @@ function renderLiftLogger(app, today, week, meso, dayData) {
         const exState = ssState?.[exIdx];
         if (!exState) return;
         const lastEx = getLastLogForExercise(ex.name);
-        const accScheme = getAccScheme(week);
         html += `
           <div class="exercise-block">
             <div class="exercise-header">
@@ -786,26 +794,26 @@ function renderLiftLogger(app, today, week, meso, dayData) {
   }
 
   function renderSetRow(type, ssIdx, setIdx, s, exIdx) {
-    const id = type === 'compound' ? `set-${setIdx}` : `set-${ssIdx}-${exIdx}-${setIdx}`;
+    const id = buildSetId(type, ssIdx, exIdx ?? '', setIdx);
     return `
       <div class="set-row${s.completed ? ' completed' : ''}" id="row-${id}">
         <div class="set-num">S${s.setNum}</div>
         <div class="set-weight-group">
-          <button class="adj-btn" data-type="${type}" data-ss="${ssIdx}" data-ex="${exIdx !== undefined ? exIdx : ''}" data-set="${setIdx}" data-adj="-5">−</button>
+          <button class="adj-btn" data-type="${type}" data-ss="${ssIdx}" data-ex="${exIdx ?? ''}" data-set="${setIdx}" data-adj="-5">−</button>
           <input type="number" class="weight-input" inputmode="decimal"
             value="${s.weight || ''}" placeholder="—"
-            data-type="${type}" data-ss="${ssIdx}" data-ex="${exIdx !== undefined ? exIdx : ''}" data-set="${setIdx}"
+            data-type="${type}" data-ss="${ssIdx}" data-ex="${exIdx ?? ''}" data-set="${setIdx}"
             id="wi-${id}">
-          <button class="adj-btn" data-type="${type}" data-ss="${ssIdx}" data-ex="${exIdx !== undefined ? exIdx : ''}" data-set="${setIdx}" data-adj="+5">+</button>
+          <button class="adj-btn" data-type="${type}" data-ss="${ssIdx}" data-ex="${exIdx ?? ''}" data-set="${setIdx}" data-adj="+5">+</button>
           <span class="weight-unit">lbs</span>
         </div>
         <input type="number" class="rep-input" inputmode="numeric"
           value="${s.reps || ''}" placeholder="—"
-          data-type="${type}" data-ss="${ssIdx}" data-ex="${exIdx !== undefined ? exIdx : ''}" data-set="${setIdx}"
+          data-type="${type}" data-ss="${ssIdx}" data-ex="${exIdx ?? ''}" data-set="${setIdx}"
           id="ri-${id}">
         <span class="rep-label">reps</span>
         <button class="check-btn${s.completed ? ' done' : ''}"
-          data-type="${type}" data-ss="${ssIdx}" data-ex="${exIdx !== undefined ? exIdx : ''}" data-set="${setIdx}"
+          data-type="${type}" data-ss="${ssIdx}" data-ex="${exIdx ?? ''}" data-set="${setIdx}"
           id="cb-${id}">✓</button>
       </div>`;
   }
@@ -816,11 +824,15 @@ function renderLiftLogger(app, today, week, meso, dayData) {
   }
 
   function attachLogEvents() {
+    function parseSetCoords({ type, ss, ex, set }) {
+      return [type, parseInt(ss), ex !== '' ? parseInt(ex) : undefined, parseInt(set)];
+    }
+
     // Weight inputs
     div.querySelectorAll('.weight-input').forEach(input => {
       input.addEventListener('input', e => {
-        const { type, ss, ex, set } = e.target.dataset;
-        const s = getSetState(type, parseInt(ss), ex !== '' ? parseInt(ex) : undefined, parseInt(set));
+        const { type, set } = e.target.dataset;
+        const s = getSetState(...parseSetCoords(e.target.dataset));
         if (s) {
           s.weight = parseFloat(e.target.value) || 0;
           if (type === 'compound' && parseInt(set) === 0 && sessionState.compound.sets.length > 1) {
@@ -837,8 +849,7 @@ function renderLiftLogger(app, today, week, meso, dayData) {
     // Rep inputs
     div.querySelectorAll('.rep-input').forEach(input => {
       input.addEventListener('input', e => {
-        const { type, ss, ex, set } = e.target.dataset;
-        const s = getSetState(type, parseInt(ss), ex !== '' ? parseInt(ex) : undefined, parseInt(set));
+        const s = getSetState(...parseSetCoords(e.target.dataset));
         if (s) s.reps = parseInt(e.target.value) || 0;
       });
     });
@@ -852,7 +863,7 @@ function renderLiftLogger(app, today, week, meso, dayData) {
         if (!s) return;
         const delta = adj === '-5' ? -5 * mult : 5 * mult;
         s.weight = Math.max(0, (s.weight || 0) + delta);
-        const id = type === 'compound' ? `set-${set}` : `set-${ss}-${ex}-${set}`;
+        const id = buildSetId(type, ss, ex, set);
         const wi = document.getElementById(`wi-${id}`);
         if (wi) wi.value = s.weight;
       };
@@ -866,11 +877,11 @@ function renderLiftLogger(app, today, week, meso, dayData) {
     div.querySelectorAll('.check-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         const { type, ss, ex, set } = btn.dataset;
-        const s = getSetState(type, parseInt(ss), ex !== '' ? parseInt(ex) : undefined, parseInt(set));
+        const s = getSetState(...parseSetCoords(btn.dataset));
         if (!s) return;
         s.completed = !s.completed;
         startTimer();
-        const id = type === 'compound' ? `set-${set}` : `set-${ss}-${ex}-${set}`;
+        const id = buildSetId(type, ss, ex, set);
         const row = document.getElementById(`row-${id}`);
         const cb = document.getElementById(`cb-${id}`);
         if (row) row.classList.toggle('completed', s.completed);
@@ -917,7 +928,7 @@ function renderLiftLogger(app, today, week, meso, dayData) {
       type: 'lift',
       day: today,
       week,
-      date: new Date().toISOString().split('T')[0],
+      date: todayISO(),
       compound: sessionState.compound,
       supersets: sessionState.supersets,
       rpe: sessionState.rpe,
@@ -1087,8 +1098,8 @@ VIEWS['progress'] = function(app) {
   // Per-lift SVG charts
   let chartsHTML = `<div class="section-title">Strength Trend</div>`;
   big4.forEach(lift => {
-    const liftLogs = logs.filter(l => l.compound?.exercise === lift.name);
-    const points = liftLogs.map(l => {
+    const exerciseLogs = logs.filter(l => l.compound?.exercise === lift.name);
+    const points = exerciseLogs.map(l => {
       const topSet = l.compound?.sets?.filter(s => s.completed).reduce((b, s) => s.weight > (b.weight||0) ? s : b, null);
       return topSet ? { w: topSet.weight, date: l.date } : null;
     }).filter(Boolean);
@@ -1177,7 +1188,7 @@ VIEWS['progress'] = function(app) {
     if (!val) return;
     const m = getMeta();
     if (!m.bodyweight) m.bodyweight = [];
-    m.bodyweight.push({ weight: val, date: new Date().toISOString().split('T')[0] });
+    m.bodyweight.push({ weight: val, date: todayISO() });
     saveMeta(m);
     showToast('Bodyweight saved');
     VIEWS['progress'](app);
@@ -1381,7 +1392,7 @@ VIEWS['settings'] = function(app) {
     maxLifts.forEach(lift => {
       const input = div.querySelector(`[data-max="${lift}"]`);
       const val = parseFloat(input.value);
-      if (val) m.maxes[lift] = { weight: val, reps: 1, date: new Date().toISOString().split('T')[0] };
+      if (val) m.maxes[lift] = { weight: val, reps: 1, date: todayISO() };
     });
     saveMeta(m);
     showToast('Maxes saved');
