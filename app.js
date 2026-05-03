@@ -1018,7 +1018,7 @@ VIEWS['history'] = function(app) {
           subText = `${log.activity || ''} · ${log.duration || 60} min`;
         } else {
           mainText = log.compound?.exercise || 'Workout';
-          const topSet = log.compound?.sets?.filter(s => s.completed).reduce((b, s) => s.weight > (b.weight||0) ? s : b, null);
+          const topSet = log.compound?.sets?.filter(s => s.completed).reduce((b, s) => s.weight > (b?.weight||0) ? s : b, null);
           subText = topSet?.weight ? `Top set: ${topSet.weight} lbs × ${topSet.reps}` : '';
         }
         const rpeDotHTML = log.rpe ? `<div class="rpe-dot" style="background:${rpeColor(log.rpe)}"></div>` : '';

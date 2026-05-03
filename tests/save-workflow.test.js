@@ -1,7 +1,8 @@
-// Prove-It tests for three reported bugs:
+// Prove-It tests for four reported bugs:
 // Bug 1: "Save Workout" button does nothing
 // Bug 2: Navigate away then back → in-progress session lost
 // Bug 3: Dashboard still shows "Start Today's Workout" after saving
+// Bug 4: History view crashes after a workout is saved
 
 beforeEach(() => {
   localStorage.clear()
@@ -96,5 +97,24 @@ describe('Bug 3 — dashboard reflects logged state after save', () => {
 
     // The log was saved — isTodayLogged should recognise it
     expect(isTodayLogged('mon')).toBe(true)
+  })
+})
+
+// ─── Bug 4: History view crashes after saving ─────────
+describe('Bug 4 — history view renders after a saved workout', () => {
+  it('renders without throwing when a lift log exists', () => {
+    const app = document.getElementById('app')
+    app.innerHTML = ''
+
+    renderLift(app)
+    checkAllCompoundSets(app)
+    app.querySelector('#save-session').click()
+
+    // Navigate to history — should not throw
+    app.innerHTML = ''
+    expect(() => VIEWS['history'](app)).not.toThrow()
+
+    // At least one row should appear
+    expect(app.querySelector('.history-row')).not.toBeNull()
   })
 })
