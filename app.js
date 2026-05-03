@@ -112,6 +112,12 @@ function getTodaysProgramDay() {
   return map[new Date().getDay()];
 }
 
+function isProgramStarted() {
+  const meta = getMeta();
+  if (!meta?.programStartDate) return false;
+  return todayISO() >= meta.programStartDate;
+}
+
 function getCompoundScheme(week) {
   const meso = getMesoId(week);
   if (isDeload(week)) return PROGRAM.schemes.compoundDeload[meso];
@@ -464,6 +470,16 @@ VIEWS['dashboard'] = function(app) {
 
   // Smart card
   let smartCardHTML = `<div class="smart-card">`;
+
+  if (!isProgramStarted()) {
+    const meta = getMeta();
+    smartCardHTML += `
+      <div class="meso-label">PROGRAM NOT STARTED</div>
+      <div class="session-title" style="font-size:18px">Starting ${meta.programStartDate}</div>
+      <div class="text-muted text-sm" style="margin-top:8px">Come back on your start date to log your first session.</div>`;
+    smartCardHTML += `</div>`;
+  } else {
+
   smartCardHTML += `<div class="meso-label">WEEK ${week} · ${getMesoLabel(week).toUpperCase()}${isDeload(week) ? ' · DELOAD' : ''}</div>`;
 
   if (dayData.type === 'lift') {
@@ -495,6 +511,8 @@ VIEWS['dashboard'] = function(app) {
     smartCardHTML += `<div class="text-muted text-sm mt8">Next: Monday — ${nextMon.name}</div>`;
   }
   smartCardHTML += `</div>`;
+
+  } // end isProgramStarted
 
   // Week dots
   const liftDays = ['mon', 'wed', 'fri', 'sat'];
@@ -587,6 +605,17 @@ VIEWS['dashboard'] = function(app) {
 // VIEW: LOG
 // ═══════════════════════════════════════════════════
 VIEWS['log'] = function(app) {
+  if (!isProgramStarted()) {
+    const meta = getMeta();
+    app.innerHTML = `<div class="view">
+      <div class="card" style="text-align:center;padding:32px">
+        <div class="title" style="margin-bottom:8px">Program Not Started</div>
+        <div class="text-muted">Your program begins on ${meta.programStartDate}.<br>Come back then to log your first session.</div>
+      </div>
+    </div>`;
+    return;
+  }
+
   const week = getCurrentWeek();
   const meso = getMesoId(week);
   const today = getTodaysProgramDay();
