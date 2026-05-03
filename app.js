@@ -65,7 +65,7 @@ function generateId() {
 }
 
 function todayISO() {
-  return todayISO();
+  return new Date().toISOString().split('T')[0];
 }
 
 // ─── AUTOMATION ENGINE ────────────────────────────────
