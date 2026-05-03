@@ -1027,7 +1027,7 @@ VIEWS['history'] = function(app) {
         html += `
           <div class="history-row" data-id="${log.id}">
             <div class="date-chip">${formatDate(log.date)}</div>
-            <div style="flex:1">
+            <div style="flex:1;min-width:0">
               <div><span class="badge ${log.type === 'zone2' ? 'badge-z2' : dayBadgeClass(log.day)}">${log.type === 'zone2' ? 'Z2' : dayLabel(log.day)}</span></div>
               <div class="history-exercise mt4">${mainText}</div>
               <div class="history-sub">${subText}</div>
