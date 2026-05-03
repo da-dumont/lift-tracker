@@ -6,7 +6,8 @@
 // ─── STORAGE LAYER ───────────────────────────────────
 const STORAGE_KEYS = {
   meta: 'lift_meta',
-  logs: 'lift_logs'
+  logs: 'lift_logs',
+  draft: 'lift_draft'
 };
 
 function getMeta() {
@@ -35,6 +36,19 @@ function addLog(entry) {
 
 function deleteLog(id) {
   saveLogs(getLogs().filter(l => l.id !== id));
+}
+
+function getDraft() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEYS.draft)) || null; }
+  catch { return null; }
+}
+
+function saveDraft(day, week, state) {
+  localStorage.setItem(STORAGE_KEYS.draft, JSON.stringify({ day, week, state }));
+}
+
+function clearDraft() {
+  localStorage.removeItem(STORAGE_KEYS.draft);
 }
 
 function exportData() {
@@ -535,7 +549,7 @@ VIEWS['dashboard'] = function(app) {
   big4.forEach(lift => {
     const exerciseLogs = logs.filter(l => l.compound?.exercise === lift.name).slice(-8);
     const points = exerciseLogs.map(l => {
-      const topSet = l.compound?.sets?.filter(s => s.completed).reduce((b, s) => s.weight > (b.weight || 0) ? s : b, null);
+      const topSet = l.compound?.sets?.filter(s => s.completed).reduce((b, s) => s.weight > (b?.weight || 0) ? s : b, null);
       return topSet ? topSet.weight : null;
     }).filter(Boolean);
     const latest = points.length ? points[points.length - 1] : null;
@@ -653,17 +667,20 @@ function renderLiftLogger(app, today, week, meso, dayData) {
   const suggestedWeight = getSuggestedWeight(compound.name, week) || 135;
   const lastCompound = getLastLogForExercise(compound.name);
 
-  // State
-  const sessionState = {
-    compound: {
-      exercise: compound.name,
-      sets: Array.from({ length: sets }, (_, i) => ({
-        setNum: i + 1, weight: suggestedWeight, reps: repsDefault, completed: false
-      }))
-    },
-    supersets: {},
-    rpe: null, notes: '', startTime: null, duration: 0
-  };
+  // State — restore draft if it matches today's day + week
+  const existingDraft = getDraft();
+  const sessionState = (existingDraft && existingDraft.day === today && existingDraft.week === week)
+    ? existingDraft.state
+    : {
+        compound: {
+          exercise: compound.name,
+          sets: Array.from({ length: sets }, (_, i) => ({
+            setNum: i + 1, weight: suggestedWeight, reps: repsDefault, completed: false
+          }))
+        },
+        supersets: {},
+        rpe: null, notes: '', startTime: null, duration: 0
+      };
 
   let timerInterval = null;
 
@@ -835,8 +852,9 @@ function renderLiftLogger(app, today, week, meso, dayData) {
         const s = getSetState(...parseSetCoords(e.target.dataset));
         if (s) {
           s.weight = parseFloat(e.target.value) || 0;
+          saveDraft(today, week, sessionState);
           if (type === 'compound' && parseInt(set) === 0 && sessionState.compound.sets.length > 1) {
-            const applyBar = document.getElementById('apply-all-compound');
+            const applyBar = div.querySelector('#apply-all-compound');
             if (applyBar) {
               applyBar.style.display = 'flex';
               applyBar.querySelector('span').textContent = `Apply ${s.weight} lbs to all sets?`;
@@ -850,7 +868,10 @@ function renderLiftLogger(app, today, week, meso, dayData) {
     div.querySelectorAll('.rep-input').forEach(input => {
       input.addEventListener('input', e => {
         const s = getSetState(...parseSetCoords(e.target.dataset));
-        if (s) s.reps = parseInt(e.target.value) || 0;
+        if (s) {
+          s.reps = parseInt(e.target.value) || 0;
+          saveDraft(today, week, sessionState);
+        }
       });
     });
 
@@ -880,6 +901,7 @@ function renderLiftLogger(app, today, week, meso, dayData) {
         const s = getSetState(...parseSetCoords(btn.dataset));
         if (!s) return;
         s.completed = !s.completed;
+        saveDraft(today, week, sessionState);
         startTimer();
         const id = buildSetId(type, ss, ex, set);
         const row = document.getElementById(`row-${id}`);
@@ -893,11 +915,14 @@ function renderLiftLogger(app, today, week, meso, dayData) {
     });
 
     // Notes
-    const notesEl = document.getElementById('session-notes');
-    if (notesEl) notesEl.addEventListener('input', e => { sessionState.notes = e.target.value; });
+    const notesEl = div.querySelector('#session-notes');
+    if (notesEl) notesEl.addEventListener('input', e => {
+      sessionState.notes = e.target.value;
+      saveDraft(today, week, sessionState);
+    });
 
     // Save
-    const saveBtn = document.getElementById('save-session');
+    const saveBtn = div.querySelector('#save-session');
     if (saveBtn) saveBtn.addEventListener('click', saveSession);
   }
 
@@ -939,6 +964,7 @@ function renderLiftLogger(app, today, week, meso, dayData) {
     const prs = detectPRs(log);
     savePRs(prs);
     addLog(log);
+    clearDraft();
 
     if (prs.length) {
       prs.forEach(pr => {
